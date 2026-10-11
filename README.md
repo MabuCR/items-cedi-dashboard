@@ -51,5 +51,6 @@ Cuando tengas un reporte GLS nuevo:
 ## Busqueda
 
 - Si escribis solo numeros, se busca match exacto por `ITEM #` (como una placa).
-- Si escribis texto, se busca por coincidencia parcial en la descripcion;
-  si hay varios resultados se muestra una lista para elegir.
+- Si escribis letras/numeros (ej `MA18N`), se busca por `PRIME SLOT ID` (slot).
+  Ningun slot del CEDI es puramente numerico, asi que no hay ambiguedad.
+- Un slot puede tener mas de un item; si hay varios se muestra una lista para elegir.

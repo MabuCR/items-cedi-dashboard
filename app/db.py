@@ -21,18 +21,18 @@ def get_by_item_num(item_num: str) -> dict | None:
     return dict(row) if row else None
 
 
-def search_by_desc(query: str, limit: int = 20) -> list[dict]:
-    """Busca por coincidencia parcial en la descripcion del item."""
+def search_by_slot(slot: str, limit: int = 20) -> list[dict]:
+    """Busca items cuyo slot primario coincide (un slot puede tener varios items)."""
     conn = get_connection()
     rows = conn.execute(
         """
         SELECT item_num, item_desc, whse_area, prime_slot_id, boh_zero_ind
         FROM items
-        WHERE item_desc LIKE ?
+        WHERE UPPER(prime_slot_id) = UPPER(?)
         ORDER BY item_desc
         LIMIT ?
         """,
-        (f"%{query.strip()}%", limit),
+        (slot.strip(), limit),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

@@ -29,13 +29,16 @@ def buscar(request: Request, q: str = Query(default="")):
     if not q:
         return templates.TemplateResponse(request, "partials/not_found.html", context)
 
-    # Si parece numero de item, probamos match exacto primero (como buscar placa).
-    item = db.get_by_item_num(q) if q.isdigit() else None
-    if item:
-        context["item"] = item
-        return templates.TemplateResponse(request, "partials/result_card.html", context)
+    # Numero puro -> buscamos por item# exacto (como una placa).
+    # Cualquier otra cosa (ningun slot del CEDI es puramente numerico) -> por slot.
+    if q.isdigit():
+        item = db.get_by_item_num(q)
+        if item:
+            context["item"] = item
+            return templates.TemplateResponse(request, "partials/result_card.html", context)
+        return templates.TemplateResponse(request, "partials/not_found.html", context)
 
-    matches = db.search_by_desc(q)
+    matches = db.search_by_slot(q)
     if len(matches) == 1:
         item = db.get_by_item_num(matches[0]["item_num"])
         context["item"] = item
