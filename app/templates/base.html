@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Consulta de Items - CEDI Walmart{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    :root {
+      --walmart-blue: #0053e2;
+      --spark-yellow: #ffc220;
+      --green: #2a8703;
+      --red: #ea1100;
+    }
+    body { background: #f4f6fb; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .walmart-header { background: var(--walmart-blue); }
+    .green-badge { background: #d4edda; color: var(--green); border: 1px solid #b7dfbc; }
+    .inactive-badge { background: #f8d7da; color: var(--red); border: 1px solid #f5c2c7; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 2px 16px rgba(0,83,226,0.10); }
+    .search-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,83,226,0.2); border-color: var(--walmart-blue); }
+    .search-btn { background: var(--walmart-blue); }
+    .search-btn:active { background: #0042b5; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .htmx-request.spinner { display: inline-block !important; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="walmart-header text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-20 shadow-lg">
+    <div>
+      <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="20" r="10" fill="#ffc220"/>
+        <circle cx="50" cy="80" r="10" fill="#ffc220"/>
+        <circle cx="20" cy="50" r="10" fill="#ffc220"/>
+        <circle cx="80" cy="50" r="10" fill="#ffc220"/>
+        <circle cx="29" cy="29" r="10" fill="#ffc220"/>
+        <circle cx="71" cy="71" r="10" fill="#ffc220"/>
+        <circle cx="71" cy="29" r="10" fill="#ffc220"/>
+        <circle cx="29" cy="71" r="10" fill="#ffc220"/>
+      </svg>
+    </div>
+    <div>
+      <div class="text-lg font-bold leading-tight">Consulta de Items</div>
+      <div class="text-blue-200 text-xs">CEDI Walmart — Inventario GLS 2026</div>
+    </div>
+  </header>
+  <main class="px-4 py-6 max-w-lg mx-auto">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

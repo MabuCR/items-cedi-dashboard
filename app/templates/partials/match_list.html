@@ -1,0 +1,21 @@
+<div class="card p-3 fade-in divide-y divide-gray-100">
+  {% for m in matches %}
+  <button
+    class="w-full text-left py-3 px-2 hover:bg-blue-50 rounded-lg flex items-center justify-between"
+    hx-get="/item/{{ m.item_num }}"
+    hx-target="#resultado"
+    hx-swap="innerHTML"
+  >
+    <div>
+      <div class="font-mono font-bold text-blue-700">{{ m.item_num }}</div>
+      <div class="text-sm text-gray-600">{{ m.item_desc }}</div>
+      <div class="text-xs text-gray-400">{{ m.whse_area or "—" }} &middot; {{ m.prime_slot_id or "—" }}</div>
+    </div>
+    {% if m.boh_zero_ind == 'Y' %}
+      <span class="tag inactive-badge">Sin stock</span>
+    {% else %}
+      <span class="tag green-badge">OK</span>
+    {% endif %}
+  </button>
+  {% endfor %}
+</div>

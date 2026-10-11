@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+  <div class="card p-5 mb-4 text-center">
+    <div class="text-sm text-gray-500">Items cargados</div>
+    <div class="text-2xl font-black text-blue-700">{{ "{:,}".format(stats.total_items or 0) }}</div>
+    <div class="text-xs text-gray-400 mt-1">
+      {{ stats.sin_existencia or 0 }} sin existencia &middot; {{ stats.areas or 0 }} areas de bodega
+    </div>
+  </div>
+
+  <div class="card p-5 mb-4">
+    <p class="text-gray-500 text-sm mb-3 text-center">
+      Ingresa el numero de item o parte de la descripcion
+    </p>
+    <div class="flex gap-2">
+      <input
+        id="searchInput"
+        name="q"
+        type="text"
+        placeholder="Ej: 205019 o GILLETTE"
+        class="search-input flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-mono tracking-wide"
+        autocomplete="off"
+        hx-get="/buscar"
+        hx-trigger="keyup changed delay:400ms, search"
+        hx-target="#resultado"
+        hx-swap="innerHTML"
+      />
+      <button
+        class="search-btn text-white rounded-xl px-5 font-bold text-lg"
+        hx-get="/buscar"
+        hx-include="#searchInput"
+        hx-target="#resultado"
+        hx-swap="innerHTML"
+      >
+        →
+      </button>
+    </div>
+  </div>
+
+  <div id="resultado"></div>
+
+{% endblock %}

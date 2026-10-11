@@ -1,0 +1,7 @@
+<div class="card p-5 text-center fade-in">
+  <div class="text-5xl mb-3"></div>
+  <div class="font-bold text-gray-700 text-lg">Item no encontrado</div>
+  <div class="text-gray-500 text-sm mt-1">
+    {% if query %}No hay resultados para "{{ query }}".{% else %}Escribe un numero de item o una descripcion.{% endif %}
+  </div>
+</div>

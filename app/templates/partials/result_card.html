@@ -1,0 +1,87 @@
+<div class="card p-5 fade-in">
+
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Item #</div>
+      <div class="text-3xl font-black text-blue-700 font-mono">{{ item.item_num }}</div>
+      <div class="text-sm text-gray-600 mt-1">{{ item.item_desc }}</div>
+    </div>
+    {% if item.boh_zero_ind == 'Y' %}
+      <div class="tag inactive-badge mt-1">Sin existencia</div>
+    {% else %}
+      <div class="tag green-badge mt-1">Disponible</div>
+    {% endif %}
+  </div>
+
+  <hr class="border-gray-100 mb-4"/>
+
+  <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Ubicacion (Slot)</div>
+      <div class="font-bold font-mono">{{ item.prime_slot_id or "—" }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Area de bodega</div>
+      <div class="font-bold">{{ item.whse_area or "—" }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Seccion</div>
+      <div class="font-bold">{{ item.sel_sect or "—" }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Marshal area</div>
+      <div class="font-bold">{{ item.marshal_area or "—" }}</div>
+    </div>
+  </div>
+
+  <div class="bg-blue-50 rounded-xl p-3 mb-4">
+    <div class="text-xs text-blue-700 font-bold uppercase mb-2">Existencias (cajas)</div>
+    <div class="grid grid-cols-3 gap-2 text-center">
+      <div>
+        <div class="text-lg font-black text-blue-700">{{ item.on_hand_whpk | default(0) | int }}</div>
+        <div class="text-xs text-gray-500">WHPK</div>
+      </div>
+      <div>
+        <div class="text-lg font-black text-blue-700">{{ item.on_hand_vnpk | default(0) | int }}</div>
+        <div class="text-xs text-gray-500">VNPK</div>
+      </div>
+      <div>
+        <div class="text-lg font-black text-blue-700">{{ item.on_hand_eaches | default(0) | int }}</div>
+        <div class="text-xs text-gray-500">Eaches</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Tipo reposicion</div>
+      <div class="font-bold">{{ item.repl_type or "—" }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">% Reposicion / Max</div>
+      <div class="font-bold">{{ item.repl_pct | num }}% / {{ item.prime_max | num }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Empaque (Whpk/Vnpk/Ea)</div>
+      <div class="font-bold">{{ item.qty_whpk | num }} / {{ item.qty_vnpk | num }} / {{ item.qty_eaches | num }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Pallet Ti x Hi</div>
+      <div class="font-bold">{{ item.whse_ti | num }} x {{ item.whse_hi | num }}</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Vida de anaquel</div>
+      <div class="font-bold">{{ item.shelf_life | num }} dias ({{ item.rot_code or "—" }})</div>
+    </div>
+    <div>
+      <div class="text-gray-400 text-xs uppercase">Costo (WAC)</div>
+      <div class="font-bold">{{ item.wac or "—" }}</div>
+    </div>
+  </div>
+
+  <div class="text-xs text-gray-400 text-center">
+    Depto {{ item.dept_num | num }} &middot; Grupo {{ item.stack_group_code or "—" }}
+    {% if item.extra_size_ind == 'Y' %} &middot; Tamano extra{% endif %}
+  </div>
+
+</div>
