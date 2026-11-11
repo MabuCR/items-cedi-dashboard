@@ -21,12 +21,20 @@ def get_by_item_num(item_num: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_by_upc(upc: str) -> dict | None:
+    """Busca un item por su codigo de barras (UPC) exacto -- usado por el escaner de camara."""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM items WHERE upc = ?", (upc.strip(),)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def search_by_slot(slot: str, limit: int = 20) -> list[dict]:
     """Busca items cuyo slot primario coincide (un slot puede tener varios items)."""
     conn = get_connection()
     rows = conn.execute(
         """
-        SELECT item_num, item_desc, whse_area, prime_slot_id, boh_zero_ind
+        SELECT item_num, item_desc, whse_area, prime_slot_id
         FROM items
         WHERE UPPER(prime_slot_id) = UPPER(?)
         ORDER BY item_desc
@@ -44,8 +52,8 @@ def get_stats() -> dict:
         """
         SELECT
             COUNT(*) AS total_items,
-            SUM(CASE WHEN boh_zero_ind = 'Y' THEN 1 ELSE 0 END) AS sin_existencia,
-            COUNT(DISTINCT whse_area) AS areas
+            COUNT(DISTINCT whse_area) AS areas,
+            SUM(CASE WHEN upc IS NOT NULL THEN 1 ELSE 0 END) AS con_upc
         FROM items
         """
     ).fetchone()

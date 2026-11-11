@@ -8,9 +8,8 @@ conn.row_factory = sqlite3.Row
 COLS = [
     "item_num", "item_desc", "prime_slot_id", "whse_area", "sel_sect",
     "marshal_area", "repl_type", "repl_pct", "prime_max", "qty_whpk",
-    "qty_vnpk", "qty_eaches", "whse_ti", "whse_hi", "shelf_life", "rot_code",
-    "wac", "on_hand_whpk", "on_hand_vnpk", "on_hand_eaches", "boh_zero_ind",
-    "dept_num", "stack_group_code", "extra_size_ind",
+    "qty_vnpk", "whse_ti", "whse_hi", "shelf_life", "rot_code",
+    "wac", "upc", "dept_num",
 ]
 
 rows = conn.execute(f"SELECT {', '.join(COLS)} FROM items").fetchall()

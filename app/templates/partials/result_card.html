@@ -6,10 +6,8 @@
       <div class="text-3xl font-black text-blue-700 font-mono">{{ item.item_num }}</div>
       <div class="text-sm text-gray-600 mt-1">{{ item.item_desc }}</div>
     </div>
-    {% if item.boh_zero_ind == 'Y' %}
-      <div class="tag inactive-badge mt-1">Sin existencia</div>
-    {% else %}
-      <div class="tag green-badge mt-1">Disponible</div>
+    {% if item.upc %}
+      <div class="tag green-badge mt-1 font-mono">UPC {{ item.upc }}</div>
     {% endif %}
   </div>
 
@@ -35,21 +33,18 @@
   </div>
 
   <div class="bg-blue-50 rounded-xl p-3 mb-4">
-    <div class="text-xs text-blue-700 font-bold uppercase mb-2">Existencias (cajas)</div>
-    <div class="grid grid-cols-3 gap-2 text-center">
+    <div class="text-xs text-blue-700 font-bold uppercase mb-2">Empaque (unidades por nivel)</div>
+    <div class="grid grid-cols-2 gap-2 text-center">
       <div>
-        <div class="text-lg font-black text-blue-700">{{ item.on_hand_whpk | default(0) | int }}</div>
+        <div class="text-lg font-black text-blue-700">{{ item.qty_whpk | num }}</div>
         <div class="text-xs text-gray-500">WHPK</div>
       </div>
       <div>
-        <div class="text-lg font-black text-blue-700">{{ item.on_hand_vnpk | default(0) | int }}</div>
+        <div class="text-lg font-black text-blue-700">{{ item.qty_vnpk | num }}</div>
         <div class="text-xs text-gray-500">VNPK</div>
       </div>
-      <div>
-        <div class="text-lg font-black text-blue-700">{{ item.on_hand_eaches | default(0) | int }}</div>
-        <div class="text-xs text-gray-500">Eaches</div>
-      </div>
     </div>
+    <div class="text-xs text-gray-400 text-center mt-2">Este reporte no trae existencias en bodega, solo datos de ubicacion y empaque.</div>
   </div>
 
   <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
@@ -62,8 +57,8 @@
       <div class="font-bold">{{ item.repl_pct | num }}% / {{ item.prime_max | num }}</div>
     </div>
     <div>
-      <div class="text-gray-400 text-xs uppercase">Empaque (Whpk/Vnpk/Ea)</div>
-      <div class="font-bold">{{ item.qty_whpk | num }} / {{ item.qty_vnpk | num }} / {{ item.qty_eaches | num }}</div>
+      <div class="text-gray-400 text-xs uppercase">Empaque (Whpk/Vnpk)</div>
+      <div class="font-bold">{{ item.qty_whpk | num }} / {{ item.qty_vnpk | num }}</div>
     </div>
     <div>
       <div class="text-gray-400 text-xs uppercase">Pallet Ti x Hi</div>
@@ -80,8 +75,7 @@
   </div>
 
   <div class="text-xs text-gray-400 text-center">
-    Depto {{ item.dept_num | num }} &middot; Grupo {{ item.stack_group_code or "—" }}
-    {% if item.extra_size_ind == 'Y' %} &middot; Tamano extra{% endif %}
+    Depto {{ item.dept_num | num }}
   </div>
 
 </div>

@@ -1,6 +1,11 @@
 """
-Carga el reporte GLS Item Report (.xls) a SQLite.
-Reusable: si te mandan un reporte nuevo, pisa data/raw_items.xls y corre
+Carga el reporte "item CEDI" (.xlsx, item/slot master) a SQLite.
+Este reporte reemplazo al viejo GLS Item Report (ver app/ingest_xls_legacy.py):
+cubre TODAS las areas/pasillos del CEDI (no solo Meat/Wet) y trae el UPC real
+de cada item (util para el escaner de camara), pero NO trae existencias on-hand
+(no hay columna de stock disponible en este formato).
+
+Reusable: si te mandan un reporte nuevo, pisa data/raw_items.xlsx y corre
 este script de nuevo (python -m app.ingest).
 """
 from __future__ import annotations
@@ -8,51 +13,41 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import xlrd
+import openpyxl
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SOURCE_XLS = BASE_DIR / "data" / "raw_items.xls"
+SOURCE_XLSX = BASE_DIR / "data" / "raw_items.xlsx"
 DB_PATH = BASE_DIR / "data" / "items.db"
 
-# Mapea el indice de columna del xls (fila 0 = header) a nombre de columna SQL.
-# Se descartan columnas poco usadas en consulta operativa (sanitarios, fitosanitario,
-# dimensiones detalladas, etc.) para no cargar ruido a la UI movil.
+# Mapea el indice de columna del xlsx (fila 1 = header) a nombre de columna SQL.
+# Se descartan columnas de dimensiones/peso detallado y datos de logistica interna
+# (vendor_ti/hi, x/y/z coord, etc.) para no saturar la UI movil.
 COLUMN_MAP: dict[int, str] = {
-    0: "business_group",
-    2: "item_num",
-    3: "item_desc",
-    4: "dept_num",
-    5: "prime_slot_id",
-    6: "prime_max",
-    7: "repl_pct",
-    8: "whse_ti",
-    9: "whse_hi",
-    10: "pick_seq",
-    11: "repl_type",
-    13: "slot_ht",
-    14: "qty_whpk",
-    15: "qty_vnpk",
-    16: "qty_eaches",
-    19: "whse_area",
-    20: "sel_sect",
-    21: "marshal_area",
-    23: "shelf_life",
-    24: "min_rec_day",
-    25: "whse_life",
-    26: "rot_code",
-    27: "wac",
-    47: "boh_zero_ind",
-    48: "on_hand_whpk",
-    55: "on_hand_vnpk",
-    56: "on_hand_eaches",
-    57: "extra_size_ind",
-    58: "stack_group_code",
+    1: "whse_area",
+    2: "marshal_area",
+    3: "dept_num",
+    5: "item_num",
+    6: "upc",
+    7: "item_desc",
+    8: "wac",
+    10: "qty_whpk",
+    16: "qty_vnpk",
+    33: "whse_ti",
+    34: "whse_hi",
+    40: "rot_code",
+    42: "shelf_life",
+    43: "whse_life",
+    44: "min_rec_day",
+    45: "repl_pct",
+    52: "sel_sect",
+    53: "prime_slot_id",
+    63: "repl_type",
+    67: "prime_max",
 }
 
 TEXT_COLS = {
-    "business_group", "item_num", "item_desc", "prime_slot_id", "repl_type",
-    "whse_area", "sel_sect", "marshal_area", "rot_code", "wac",
-    "boh_zero_ind", "extra_size_ind", "stack_group_code",
+    "whse_area", "marshal_area", "item_num", "upc", "item_desc",
+    "rot_code", "sel_sect", "prime_slot_id", "repl_type",
 }
 
 COLUMNS = list(COLUMN_MAP.values())
@@ -63,6 +58,7 @@ CREATE TABLE IF NOT EXISTS items (
     {", ".join(f"{c} {'TEXT' if c in TEXT_COLS else 'REAL'}" for c in COLUMNS)}
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_items_item_num ON items(item_num);
+CREATE INDEX IF NOT EXISTS idx_items_upc ON items(upc);
 CREATE INDEX IF NOT EXISTS idx_items_desc ON items(item_desc);
 CREATE INDEX IF NOT EXISTS idx_items_area ON items(whse_area);
 """
@@ -72,7 +68,7 @@ def _clean(value, is_text: bool, numeric_text: bool = False):
     if value is None or value == "":
         return None
     if numeric_text:
-        # Excel entrega numeros puros (ej item #) como float (205019.0);
+        # Excel entrega numeros puros (item #, UPC) como float o int;
         # los normalizamos a texto entero para que calcen en busquedas exactas.
         try:
             fval = float(value)
@@ -88,11 +84,11 @@ def _clean(value, is_text: bool, numeric_text: bool = False):
 
 
 def ingest() -> int:
-    if not SOURCE_XLS.exists():
-        raise FileNotFoundError(f"No encontre el reporte fuente en {SOURCE_XLS}")
+    if not SOURCE_XLSX.exists():
+        raise FileNotFoundError(f"No encontre el reporte fuente en {SOURCE_XLSX}")
 
-    wb = xlrd.open_workbook(SOURCE_XLS)
-    sheet = wb.sheet_by_index(0)
+    wb = openpyxl.load_workbook(SOURCE_XLSX, read_only=True, data_only=True)
+    sheet = wb[wb.sheetnames[0]]
 
     conn = sqlite3.connect(DB_PATH)
     conn.executescript("DROP TABLE IF EXISTS items;")
@@ -101,16 +97,16 @@ def ingest() -> int:
     placeholders = ", ".join("?" for _ in COLUMNS)
     insert_sql = f"INSERT OR IGNORE INTO items ({', '.join(COLUMNS)}) VALUES ({placeholders})"
 
+    numeric_text_cols = {"item_num", "upc"}
     rows_to_insert = []
-    for r in range(1, sheet.nrows):
-        item_num_cell = sheet.cell_value(r, 2)
-        if item_num_cell in (None, ""):
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        if row[5] in (None, ""):
             continue
         values = []
         for col_idx in COLUMN_MAP:
             name = COLUMN_MAP[col_idx]
-            raw = sheet.cell_value(r, col_idx)
-            values.append(_clean(raw, name in TEXT_COLS, numeric_text=(name == "item_num")))
+            raw = row[col_idx]
+            values.append(_clean(raw, name in TEXT_COLS, numeric_text=(name in numeric_text_cols)))
         rows_to_insert.append(values)
 
     conn.executemany(insert_sql, rows_to_insert)

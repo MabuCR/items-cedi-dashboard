@@ -11,11 +11,6 @@
       <div class="text-sm text-gray-600">{{ m.item_desc }}</div>
       <div class="text-xs text-gray-400">{{ m.whse_area or "—" }} &middot; {{ m.prime_slot_id or "—" }}</div>
     </div>
-    {% if m.boh_zero_ind == 'Y' %}
-      <span class="tag inactive-badge">Sin stock</span>
-    {% else %}
-      <span class="tag green-badge">OK</span>
-    {% endif %}
   </button>
   {% endfor %}
 </div>

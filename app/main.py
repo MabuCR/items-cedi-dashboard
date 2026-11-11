@@ -29,10 +29,11 @@ def buscar(request: Request, q: str = Query(default="")):
     if not q:
         return templates.TemplateResponse(request, "partials/not_found.html", context)
 
-    # Numero puro -> buscamos por item# exacto (como una placa).
-    # Cualquier otra cosa (ningun slot del CEDI es puramente numerico) -> por slot.
+    # Numero puro -> primero probamos item# exacto (como una placa), despues UPC
+    # (el codigo de barras que lee la camara). Cualquier otra cosa (ningun slot
+    # del CEDI es puramente numerico) -> por slot.
     if q.isdigit():
-        item = db.get_by_item_num(q)
+        item = db.get_by_item_num(q) or db.get_by_upc(q)
         if item:
             context["item"] = item
             return templates.TemplateResponse(request, "partials/result_card.html", context)
