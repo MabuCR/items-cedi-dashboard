@@ -65,14 +65,31 @@ todas formas", es normal y esperado.
 fantasma pegados que Windows no deja matar ni ver con tasklist -- si se
 liberan solos en algun reinicio, no hay problema en volver a usarlos.)
 
-## GitHub Pages standalone (index.html) -- DEPRECADO
+## GitHub Pages standalone (index.html) -- SIN BACKEND, funciona con el reporte actual
 
-El `index.html` en la raiz del repo es una version vieja, standalone (sin
-backend, datos embebidos en JS) armada cuando el reporte tenia 6,000 items
-(~2.8 MB de JSON). **Ya no se puede regenerar** con el reporte actual: con
-346,387 items el JSON pesaria ~109 MB, no cabe en GitHub (limite de 100 MB)
-y el celular no podria cargarlo. Para ver la app actualizada en el celular,
-usar la app FastAPI en vivo (seccion anterior), no este archivo estatico.
+El `index.html` en la raiz del repo es una version standalone (sin backend,
+sin wifi de Walmart, sin laptop prendida) para usar desde cualquier celular.
+
+La clave para que funcione con 346,387 items: `export_json.py` exporta los
+datos como **array de arrays** (los nombres de columna se guardan una sola
+vez en vez de repetirse en cada fila) y lo comprime con gzip. Eso baja el
+peso de ~106 MB (formato ingenuo, un objeto por fila) a solo **~7 MB**
+comprimidos -- entra comodo en GitHub (limite 100 MB por archivo) y el
+celular lo descarga una sola vez en un par de segundos con wifi o datos.
+
+```powershell
+python export_json.py   # regenera items_data.json.gz desde data/items.db
+python build_static.py  # regenera index.html (el HTML en si es chiquito, ~14 KB)
+git add items_data.json.gz index.html export_json.py build_static.py
+git commit -m "Actualiza datos"
+git push
+```
+
+Despues de activar GitHub Pages (Settings > Pages > Deploy from branch >
+`main` > `/root`), la app queda en `https://mabucr.github.io/items-cedi-dashboard/`.
+Busca por item#, UPC o slot (ubicacion) igual que la version con backend, y
+la camara (boton amarillo) tambien funciona porque GitHub Pages sirve todo
+por `https://` (la camara del navegador no funciona en `http://` plano).
 
 ## Actualizar los datos
 

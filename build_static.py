@@ -1,24 +1,35 @@
 """
-Arma una pagina HTML standalone (sin backend) para Puppy Pages: mismo look
-de la app FastAPI, pero con los datos embebidos y la busqueda resuelta en
-JavaScript puro (como el viejo unidades_qr.html).
+Arma una pagina HTML standalone (sin backend) para GitHub Pages: mismo look
+de la app FastAPI, pero los datos se descargan como items_data.json.gz
+(generado por export_json.py) y se descomprimen en el navegador con
+pako.js -- asi no hace falta pelear con el limite de 100 MB de GitHub ni con
+el firewall local, el celular descarga ~7 MB una vez y busca todo en el navegador.
 
-Uso: python build_static.py
-Lee data/items_export.json y escribe items_cedi_static.html en la raiz del proyecto.
+Uso: python export_json.py && python build_static.py
+Escribe index.html en la raiz del proyecto (el que sirve GitHub Pages).
 """
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-JSON_PATH = BASE_DIR / "data" / "items_export.json"
-OUT_PATH = BASE_DIR / "items_cedi_static.html"
+OUT_PATH = BASE_DIR / "index.html"
 
-TEMPLATE_HEAD = """<!DOCTYPE html>
+# Debe calzar con el orden de COLS en export_json.py.
+FIELDS = [
+    "item_num", "item_desc", "prime_slot_id", "whse_area", "sel_sect",
+    "marshal_area", "repl_type", "repl_pct", "prime_max", "qty_whpk",
+    "qty_vnpk", "whse_ti", "whse_hi", "shelf_life", "rot_code",
+    "wac", "upc", "dept_num",
+]
+
+HTML = """<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Consulta de Items - CEDI Walmart</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
       --walmart-blue: #0053e2;
@@ -29,7 +40,6 @@ TEMPLATE_HEAD = """<!DOCTYPE html>
     body { background: #f4f6fb; font-family: 'Segoe UI', system-ui, sans-serif; }
     .walmart-header { background: var(--walmart-blue); }
     .green-badge { background: #d4edda; color: var(--green); border: 1px solid #b7dfbc; }
-    .inactive-badge { background: #f8d7da; color: var(--red); border: 1px solid #f5c2c7; }
     .card { background: white; border-radius: 16px; box-shadow: 0 2px 16px rgba(0,83,226,0.10); }
     .search-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(0,83,226,0.2); border-color: var(--walmart-blue); }
     .search-btn { background: var(--walmart-blue); }
@@ -56,21 +66,21 @@ TEMPLATE_HEAD = """<!DOCTYPE html>
     </div>
     <div>
       <div class="text-lg font-bold leading-tight">Consulta de Items</div>
-      <div class="text-blue-200 text-xs">CEDI Walmart - Inventario GLS 2026</div>
+      <div class="text-blue-200 text-xs">CEDI Walmart - Inventario 2026</div>
     </div>
   </header>
 
   <main class="px-4 py-6 max-w-lg mx-auto">
 
     <div class="card p-5 mb-4 text-center">
-      <div class="text-sm text-gray-500">Items cargados</div>
-      <div class="text-2xl font-black text-blue-700" id="totalItems">-</div>
+      <div class="text-sm text-gray-500" id="loadingMsg">Cargando datos (una sola vez, ~7 MB)...</div>
+      <div class="text-2xl font-black text-blue-700 hidden" id="totalItems">-</div>
       <div class="text-xs text-gray-400 mt-1" id="statsLine"></div>
     </div>
 
     <div class="card p-5 mb-4">
       <p class="text-gray-500 text-sm mb-3 text-center">
-        Ingresa el numero de item o el slot (ubicacion)
+        Ingresa el numero de item, UPC o el slot (ubicacion), o escanea el codigo de barras
       </p>
       <div class="flex gap-2">
         <input
@@ -79,8 +89,15 @@ TEMPLATE_HEAD = """<!DOCTYPE html>
           placeholder="Ej: 205019 o MA18N"
           class="search-input flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-mono tracking-wide"
           autocomplete="off"
+          disabled
         />
-        <button id="searchBtn" class="search-btn text-white rounded-xl px-5 font-bold text-lg">-&gt;</button>
+        <button type="button" id="scanBtn" title="Escanear codigo de barras"
+          class="bg-yellow-400 hover:bg-yellow-500 text-blue-900 rounded-xl px-4 font-bold text-xl flex items-center justify-center" disabled>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7V5a1 1 0 0 1 1-1h2M4 17v2a1 1 0 0 0 1 1h2M20 7V5a1 1 0 0 0-1-1h-2M20 17v2a1 1 0 0 1-1 1h-2M4 12h16"/>
+          </svg>
+        </button>
+        <button id="searchBtn" class="search-btn text-white rounded-xl px-5 font-bold text-lg" disabled>-&gt;</button>
       </div>
     </div>
 
@@ -88,51 +105,86 @@ TEMPLATE_HEAD = """<!DOCTYPE html>
 
   </main>
 
-  <script id="items-data" type="application/json">
-"""
+  <div id="scanModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-4 w-full max-w-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="font-bold text-blue-700">Escanear codigo</div>
+        <button type="button" id="scanCloseBtn" class="text-gray-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div id="reader" class="rounded-xl overflow-hidden"></div>
+      <div id="scanError" class="text-sm text-red-600 mt-2 hidden"></div>
+      <p class="text-xs text-gray-400 mt-3 text-center">Apunta la camara al codigo de barras del item</p>
+    </div>
+  </div>
 
-TEMPLATE_TAIL = """
-  </script>
   <script>
-    const ITEMS = JSON.parse(document.getElementById('items-data').textContent);
+    const FIELDS = __FIELDS_JSON__;
+    const IDX = {};
+    FIELDS.forEach((f, i) => { IDX[f] = i; });
+
     const byItemNum = new Map();
+    const byUpc = new Map();
     const bySlot = new Map();
-    for (const it of ITEMS) {
-      byItemNum.set(String(it.item_num), it);
-      const slotKey = (it.prime_slot_id || '').toUpperCase();
-      if (!slotKey) continue;
-      if (!bySlot.has(slotKey)) bySlot.set(slotKey, []);
-      bySlot.get(slotKey).push(it);
+    let ITEMS_COUNT = 0;
+
+    function rowToItem(row) {
+      const obj = {};
+      FIELDS.forEach((f, i) => { obj[f] = row[i]; });
+      return obj;
     }
 
-    const totalEl = document.getElementById('totalItems');
-    const statsEl = document.getElementById('statsLine');
-    const sinExistencia = ITEMS.filter(it => it.boh_zero_ind === 'Y').length;
-    const areas = new Set(ITEMS.map(it => it.whse_area)).size;
-    totalEl.textContent = ITEMS.length.toLocaleString('es');
-    statsEl.textContent = `${sinExistencia} sin existencia \u00b7 ${areas} areas de bodega`;
+    async function loadData() {
+      const res = await fetch("items_data.json.gz");
+      const buf = await res.arrayBuffer();
+      const text = pako.inflate(new Uint8Array(buf), { to: "string" });
+      const payload = JSON.parse(text);
+      ITEMS_COUNT = payload.rows.length;
 
-    const resultado = document.getElementById('resultado');
-    const input = document.getElementById('searchInput');
-    const btn = document.getElementById('searchBtn');
+      for (const row of payload.rows) {
+        const itemNum = String(row[IDX.item_num]);
+        byItemNum.set(itemNum, row);
+        const upc = row[IDX.upc];
+        if (upc) byUpc.set(String(upc), row);
+        const slotKey = (row[IDX.prime_slot_id] || "").toString().toUpperCase();
+        if (!slotKey) continue;
+        if (!bySlot.has(slotKey)) bySlot.set(slotKey, []);
+        bySlot.get(slotKey).push(row);
+      }
+
+      document.getElementById("loadingMsg").classList.add("hidden");
+      const totalEl = document.getElementById("totalItems");
+      totalEl.classList.remove("hidden");
+      totalEl.textContent = ITEMS_COUNT.toLocaleString("es");
+      const areas = new Set(payload.rows.map(r => r[IDX.whse_area])).size;
+      const conUpc = payload.rows.filter(r => r[IDX.upc]).length;
+      document.getElementById("statsLine").textContent = `${areas} areas de bodega \u00b7 ${conUpc.toLocaleString("es")} con codigo de barras`;
+
+      document.getElementById("searchInput").disabled = false;
+      document.getElementById("searchBtn").disabled = false;
+      document.getElementById("scanBtn").disabled = false;
+    }
+
+    const resultado = document.getElementById("resultado");
+    const input = document.getElementById("searchInput");
+    const btn = document.getElementById("searchBtn");
 
     function num(v) {
-      if (v === null || v === undefined || v === '') return '\u2014';
+      if (v === null || v === undefined || v === "") return "\u2014";
       return String(Math.round(Number(v)));
     }
 
     function esc(s) {
-      if (s === null || s === undefined) return '';
-      const d = document.createElement('div');
+      if (s === null || s === undefined) return "";
+      const d = document.createElement("div");
       d.textContent = String(s);
       return d.innerHTML;
     }
 
-    function renderCard(item) {
-      const sinStock = item.boh_zero_ind === 'Y';
-      const badge = sinStock
-        ? '<div class="tag inactive-badge mt-1">Sin existencia</div>'
-        : '<div class="tag green-badge mt-1">Disponible</div>';
+    function renderCard(row) {
+      const item = rowToItem(row);
+      const upcBadge = item.upc
+        ? `<div class="tag green-badge mt-1 font-mono">UPC ${esc(item.upc)}</div>`
+        : "";
       resultado.innerHTML = `
         <div class="card p-5 fade-in">
           <div class="flex items-start justify-between mb-4">
@@ -141,7 +193,7 @@ TEMPLATE_TAIL = """
               <div class="text-3xl font-black text-blue-700 font-mono">${esc(item.item_num)}</div>
               <div class="text-sm text-gray-600 mt-1">${esc(item.item_desc)}</div>
             </div>
-            ${badge}
+            ${upcBadge}
           </div>
           <hr class="border-gray-100 mb-4"/>
           <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
@@ -151,41 +203,39 @@ TEMPLATE_TAIL = """
             <div><div class="text-gray-400 text-xs uppercase">Marshal area</div><div class="font-bold">${esc(item.marshal_area) || '\u2014'}</div></div>
           </div>
           <div class="bg-blue-50 rounded-xl p-3 mb-4">
-            <div class="text-xs text-blue-700 font-bold uppercase mb-2">Existencias (cajas)</div>
-            <div class="grid grid-cols-3 gap-2 text-center">
-              <div><div class="text-lg font-black text-blue-700">${num(item.on_hand_whpk)}</div><div class="text-xs text-gray-500">WHPK</div></div>
-              <div><div class="text-lg font-black text-blue-700">${num(item.on_hand_vnpk)}</div><div class="text-xs text-gray-500">VNPK</div></div>
-              <div><div class="text-lg font-black text-blue-700">${num(item.on_hand_eaches)}</div><div class="text-xs text-gray-500">Eaches</div></div>
+            <div class="text-xs text-blue-700 font-bold uppercase mb-2">Empaque (unidades por nivel)</div>
+            <div class="grid grid-cols-2 gap-2 text-center">
+              <div><div class="text-lg font-black text-blue-700">${num(item.qty_whpk)}</div><div class="text-xs text-gray-500">WHPK</div></div>
+              <div><div class="text-lg font-black text-blue-700">${num(item.qty_vnpk)}</div><div class="text-xs text-gray-500">VNPK</div></div>
             </div>
+            <div class="text-xs text-gray-400 text-center mt-2">Este reporte no trae existencias en bodega, solo datos de ubicacion y empaque.</div>
           </div>
           <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
             <div><div class="text-gray-400 text-xs uppercase">Tipo reposicion</div><div class="font-bold">${esc(item.repl_type) || '\u2014'}</div></div>
             <div><div class="text-gray-400 text-xs uppercase">% Reposicion / Max</div><div class="font-bold">${num(item.repl_pct)}% / ${num(item.prime_max)}</div></div>
-            <div><div class="text-gray-400 text-xs uppercase">Empaque (Whpk/Vnpk/Ea)</div><div class="font-bold">${num(item.qty_whpk)} / ${num(item.qty_vnpk)} / ${num(item.qty_eaches)}</div></div>
             <div><div class="text-gray-400 text-xs uppercase">Pallet Ti x Hi</div><div class="font-bold">${num(item.whse_ti)} x ${num(item.whse_hi)}</div></div>
             <div><div class="text-gray-400 text-xs uppercase">Vida de anaquel</div><div class="font-bold">${num(item.shelf_life)} dias (${esc(item.rot_code) || '\u2014'})</div></div>
             <div><div class="text-gray-400 text-xs uppercase">Costo (WAC)</div><div class="font-bold">${esc(item.wac) || '\u2014'}</div></div>
-          </div>
-          <div class="text-xs text-gray-400 text-center">
-            Depto ${num(item.dept_num)} \u00b7 Grupo ${esc(item.stack_group_code) || '\u2014'}
-            ${item.extra_size_ind === 'Y' ? ' \u00b7 Tamano extra' : ''}
+            <div><div class="text-gray-400 text-xs uppercase">Depto</div><div class="font-bold">${num(item.dept_num)}</div></div>
           </div>
         </div>`;
     }
 
-    function renderMatchList(matches) {
-      const rows = matches.map(m => `
-        <button class="match-row w-full text-left py-3 px-2 rounded-lg flex items-center justify-between" data-item="${esc(m.item_num)}">
+    function renderMatchList(rows) {
+      const html = rows.map(row => {
+        const item = rowToItem(row);
+        return `
+        <button class="match-row w-full text-left py-3 px-2 rounded-lg flex items-center justify-between" data-item="${esc(item.item_num)}">
           <div>
-            <div class="font-mono font-bold text-blue-700">${esc(m.item_num)}</div>
-            <div class="text-sm text-gray-600">${esc(m.item_desc)}</div>
-            <div class="text-xs text-gray-400">${esc(m.whse_area) || '\u2014'} \u00b7 ${esc(m.prime_slot_id) || '\u2014'}</div>
+            <div class="font-mono font-bold text-blue-700">${esc(item.item_num)}</div>
+            <div class="text-sm text-gray-600">${esc(item.item_desc)}</div>
+            <div class="text-xs text-gray-400">${esc(item.whse_area) || '\u2014'} \u00b7 ${esc(item.prime_slot_id) || '\u2014'}</div>
           </div>
-          ${m.boh_zero_ind === 'Y' ? '<span class="tag inactive-badge">Sin stock</span>' : '<span class="tag green-badge">OK</span>'}
-        </button>`).join('');
-      resultado.innerHTML = `<div class="card p-3 fade-in divide-y divide-gray-100">${rows}</div>`;
-      resultado.querySelectorAll('.match-row').forEach(btnEl => {
-        btnEl.addEventListener('click', () => renderCard(byItemNum.get(btnEl.dataset.item)));
+        </button>`;
+      }).join("");
+      resultado.innerHTML = `<div class="card p-3 fade-in divide-y divide-gray-100">${html}</div>`;
+      resultado.querySelectorAll(".match-row").forEach(el => {
+        el.addEventListener("click", () => renderCard(byItemNum.get(el.dataset.item)));
       });
     }
 
@@ -193,16 +243,16 @@ TEMPLATE_TAIL = """
       resultado.innerHTML = `
         <div class="card p-5 text-center fade-in">
           <div class="font-bold text-gray-700 text-lg">Item no encontrado</div>
-          <div class="text-gray-500 text-sm mt-1">${query ? `No hay resultados para "${esc(query)}".` : 'Escribe un numero de item o un slot.'}</div>
+          <div class="text-gray-500 text-sm mt-1">${query ? `No hay resultados para "${esc(query)}".` : 'Escribe un numero de item, UPC o un slot.'}</div>
         </div>`;
     }
 
     function search() {
       const q = input.value.trim();
-      if (!q) { resultado.innerHTML = ''; return; }
+      if (!q) { resultado.innerHTML = ""; return; }
       if (/^\\d+$/.test(q)) {
-        const item = byItemNum.get(q);
-        if (item) { renderCard(item); } else { renderNotFound(q); }
+        const row = byItemNum.get(q) || byUpc.get(q);
+        if (row) { renderCard(row); } else { renderNotFound(q); }
         return;
       }
       const matches = bySlot.get(q.toUpperCase()) || [];
@@ -212,12 +262,58 @@ TEMPLATE_TAIL = """
     }
 
     let debounce;
-    input.addEventListener('keyup', (e) => {
+    input.addEventListener("keyup", (e) => {
       clearTimeout(debounce);
-      if (e.key === 'Enter') { search(); return; }
+      if (e.key === "Enter") { search(); return; }
       debounce = setTimeout(search, 300);
     });
-    btn.addEventListener('click', search);
+    btn.addEventListener("click", search);
+
+    // --- Escaner de camara (igual que la app en vivo) ---
+    (function () {
+      const scanBtn = document.getElementById("scanBtn");
+      const closeBtn = document.getElementById("scanCloseBtn");
+      const modal = document.getElementById("scanModal");
+      const errorBox = document.getElementById("scanError");
+      let html5QrCode = null;
+
+      function showError(msg) {
+        errorBox.textContent = msg;
+        errorBox.classList.remove("hidden");
+      }
+
+      function stopScanner() {
+        if (html5QrCode) {
+          html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {});
+        }
+        modal.classList.add("hidden");
+      }
+
+      function onScanSuccess(decodedText) {
+        input.value = decodedText.trim();
+        search();
+        stopScanner();
+      }
+
+      scanBtn.addEventListener("click", () => {
+        if (!window.isSecureContext) {
+          showError("La camara solo funciona en https:// o localhost.");
+          return;
+        }
+        errorBox.classList.add("hidden");
+        modal.classList.remove("hidden");
+        html5QrCode = new Html5Qrcode("reader", { verbose: false });
+        html5QrCode
+          .start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 260, height: 140 } }, onScanSuccess, () => {})
+          .catch((err) => showError("No pude acceder a la camara: " + err));
+      });
+
+      closeBtn.addEventListener("click", stopScanner);
+    })();
+
+    loadData().catch((err) => {
+      document.getElementById("loadingMsg").textContent = "Error cargando datos: " + err;
+    });
   </script>
 </body>
 </html>
@@ -225,16 +321,10 @@ TEMPLATE_TAIL = """
 
 
 def build() -> None:
-    if not JSON_PATH.exists():
-        raise FileNotFoundError(f"No encontre {JSON_PATH}. Corre antes: python export_json.py")
-
-    json_text = JSON_PATH.read_text(encoding="utf-8")
-    # </script> dentro del JSON (no deberia haber, pero por las dudas) rompe el parseo HTML.
-    json_text = json_text.replace("</script>", "<\\/script>")
-
-    html = TEMPLATE_HEAD + json_text + TEMPLATE_TAIL
+    import json as _json
+    html = HTML.replace("__FIELDS_JSON__", _json.dumps(FIELDS))
     OUT_PATH.write_text(html, encoding="utf-8")
-    print(f"Listo! {OUT_PATH} ({OUT_PATH.stat().st_size / 1024 / 1024:.2f} MB)")
+    print(f"Listo! {OUT_PATH} ({OUT_PATH.stat().st_size / 1024:.1f} KB)")
 
 
 if __name__ == "__main__":
