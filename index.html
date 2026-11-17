@@ -121,7 +121,7 @@
         const itemNum = String(row[IDX.item_num]);
         byItemNum.set(itemNum, row);
         const upc = row[IDX.upc];
-        if (upc) byUpc.set(String(upc), row);
+        if (upc) byUpc.set(normalizeUpc(upc), row);
         const slotKey = (row[IDX.prime_slot_id] || "").toString().toUpperCase();
         if (!slotKey) continue;
         if (!bySlot.has(slotKey)) bySlot.set(slotKey, []);
@@ -144,6 +144,14 @@
     const resultado = document.getElementById("resultado");
     const input = document.getElementById("searchInput");
     const btn = document.getElementById("searchBtn");
+
+    // Muchos UPC en el reporte perdieron los ceros a la izquierda (Excel
+    // los trato como numero en algun punto). Comparamos por valor sin
+    // ceros iniciales para que un codigo escaneado completo (con ceros)
+    // igual haga match contra el dato recortado.
+    function normalizeUpc(v) {
+      return String(v).replace(/^0+/, "") || "0";
+    }
 
     function num(v) {
       if (v === null || v === undefined || v === "") return "—";
@@ -228,7 +236,7 @@
       const q = input.value.trim();
       if (!q) { resultado.innerHTML = ""; return; }
       if (/^\d+$/.test(q)) {
-        const row = byItemNum.get(q) || byUpc.get(q);
+        const row = byItemNum.get(q) || byUpc.get(normalizeUpc(q));
         if (row) { renderCard(row); } else { renderNotFound(q); }
         return;
       }

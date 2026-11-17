@@ -22,9 +22,16 @@ def get_by_item_num(item_num: str) -> dict | None:
 
 
 def get_by_upc(upc: str) -> dict | None:
-    """Busca un item por su codigo de barras (UPC) exacto -- usado por el escaner de camara."""
+    """Busca un item por su codigo de barras (UPC) exacto -- usado por el
+    escaner de camara. Muchos UPC del reporte perdieron los ceros a la
+    izquierda (Excel los trato como numero en algun punto), asi que
+    comparamos por valor numerico en vez de texto exacto -- si no, un
+    codigo escaneado completo (con ceros) nunca hace match."""
     conn = get_connection()
-    row = conn.execute("SELECT * FROM items WHERE upc = ?", (upc.strip(),)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM items WHERE upc IS NOT NULL AND CAST(upc AS INTEGER) = CAST(? AS INTEGER)",
+        (upc.strip(),),
+    ).fetchone()
     conn.close()
     return dict(row) if row else None
 
