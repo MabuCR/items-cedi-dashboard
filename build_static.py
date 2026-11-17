@@ -176,6 +176,24 @@ HTML = """<!DOCTYPE html>
       return String(v).replace(/^0+/, "") || "0";
     }
 
+    // Algunos codigos de barras reales son EAN-13 (13 digitos) pero el
+    // reporte solo guardo 12 (le falta o le sobra un digito de control en
+    // una punta). Probamos el codigo completo y tambien recortando un
+    // digito de cada lado, hasta encontrar match.
+    function buscarPorUpc(codigo) {
+      const candidatos = [
+        codigo,
+        codigo.slice(0, -1),
+        codigo.slice(1),
+      ];
+      for (const candidato of candidatos) {
+        if (candidato.length < 6) continue;
+        const row = byUpc.get(normalizeUpc(candidato));
+        if (row) return row;
+      }
+      return null;
+    }
+
     function num(v) {
       if (v === null || v === undefined || v === "") return "\u2014";
       return String(Math.round(Number(v)));
@@ -259,7 +277,7 @@ HTML = """<!DOCTYPE html>
       const q = input.value.trim();
       if (!q) { resultado.innerHTML = ""; return; }
       if (/^\\d+$/.test(q)) {
-        const row = byItemNum.get(q) || byUpc.get(normalizeUpc(q));
+        const row = byItemNum.get(q) || buscarPorUpc(q);
         if (row) { renderCard(row); } else { renderNotFound(q); }
         return;
       }

@@ -23,17 +23,29 @@ def get_by_item_num(item_num: str) -> dict | None:
 
 def get_by_upc(upc: str) -> dict | None:
     """Busca un item por su codigo de barras (UPC) exacto -- usado por el
-    escaner de camara. Muchos UPC del reporte perdieron los ceros a la
-    izquierda (Excel los trato como numero en algun punto), asi que
-    comparamos por valor numerico en vez de texto exacto -- si no, un
-    codigo escaneado completo (con ceros) nunca hace match."""
+    escaner de camara. Dos problemas comunes del reporte:
+    1. Muchos UPC perdieron los ceros a la izquierda (Excel los trato como
+       numero en algun punto) -- comparamos por valor numerico.
+    2. Algunos codigos reales son EAN-13 (13 digitos) pero el reporte solo
+       guardo 12 -- probamos el codigo completo y recortando un digito de
+       cada lado hasta encontrar match.
+    """
+    codigo = upc.strip()
+    candidatos = [codigo, codigo[:-1], codigo[1:]]
     conn = get_connection()
-    row = conn.execute(
-        "SELECT * FROM items WHERE upc IS NOT NULL AND CAST(upc AS INTEGER) = CAST(? AS INTEGER)",
-        (upc.strip(),),
-    ).fetchone()
-    conn.close()
-    return dict(row) if row else None
+    try:
+        for candidato in candidatos:
+            if len(candidato) < 6 or not candidato.isdigit():
+                continue
+            row = conn.execute(
+                "SELECT * FROM items WHERE upc IS NOT NULL AND CAST(upc AS INTEGER) = CAST(? AS INTEGER)",
+                (candidato,),
+            ).fetchone()
+            if row:
+                return dict(row)
+        return None
+    finally:
+        conn.close()
 
 
 def search_by_slot(slot: str, limit: int = 20) -> list[dict]:
